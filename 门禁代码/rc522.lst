@@ -1,0 +1,179 @@
+C51 COMPILER V9.54   RC522                                                                 07/17/2023 21:46:39 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE RC522
+OBJECT MODULE PLACED IN rc522.obj
+COMPILER INVOKED BY: D:\Keil5\C51\BIN\C51.EXE arc\rc522.c OPTIMIZE(8,SPEED) BROWSE INCDIR(.\arc) DEBUG OBJECTEXTEND PRIN
+                    -T(.\rc522.lst) TABS(2) OBJECT(rc522.obj)
+
+line level    source
+
+   1          
+   2          #include <reg52.h>
+   3          #include <intrins.h>
+   4          #include <string.h> 
+   5          #include "main.h"
+   6          #include "rc522.h"
+   7          
+   8          sfr   RCAP2LH =   0xCA;
+   9          sfr   T2LH    =   0xCC;                        
+  10          
+  11          // RC522 SPI接口定义
+  12          sbit     MF522_NSS  =    P2^2;    //这是SDA
+  13          sbit     MF522_SCK  =    P2^3;
+  14          sbit     MF522_SI   =    P3^4;
+  15          sbit     MF522_SO   =    P2^4;    
+  16          sbit     MF522_RST  =    P3^5;    
+  17          char PcdRequest(unsigned char req_code,unsigned char *pTagType){
+  18   1         char status;  
+  19   1         unsigned int  unLen;
+  20   1         unsigned char ucComMF522Buf[MAXRLEN]; 
+  21   1         ClearBitMask(Status2Reg,0x08);
+  22   1         WriteRawRC(BitFramingReg,0x07);
+  23   1         SetBitMask(TxControlReg,0x03);
+  24   1         ucComMF522Buf[0] = req_code;
+  25   1         status = PcdComMF522(PCD_TRANSCEIVE,ucComMF522Buf,1,ucComMF522Buf,&unLen);
+  26   1         if ((status == MI_OK) && (unLen == 0x10))
+  27   1         {    
+  28   2             *pTagType     = ucComMF522Buf[0];
+  29   2             *(pTagType+1) = ucComMF522Buf[1];
+  30   2         }
+  31   1         else
+  32   1         {   status = MI_ERR;   }   
+  33   1         return status;
+  34   1      }
+  35          
+  36          
+  37          char PcdAnticoll(unsigned char *pSnr)
+  38          {
+  39   1          char status;
+  40   1          unsigned char i,snr_check=0;
+  41   1          unsigned int  unLen;
+  42   1          unsigned char ucComMF522Buf[MAXRLEN]; 
+  43   1          
+  44   1      
+  45   1          ClearBitMask(Status2Reg,0x08);
+  46   1          WriteRawRC(BitFramingReg,0x00);
+  47   1          ClearBitMask(CollReg,0x80);
+  48   1       
+  49   1          ucComMF522Buf[0] = PICC_ANTICOLL1;
+  50   1          ucComMF522Buf[1] = 0x20;
+  51   1      
+  52   1          status = PcdComMF522(PCD_TRANSCEIVE,ucComMF522Buf,2,ucComMF522Buf,&unLen);
+  53   1      
+  54   1          if (status == MI_OK)
+C51 COMPILER V9.54   RC522                                                                 07/17/2023 21:46:39 PAGE 2   
+
+  55   1          {
+  56   2             for (i=0; i<4; i++)
+  57   2               {   
+  58   3                   *(pSnr+i)  = ucComMF522Buf[i];
+  59   3                   snr_check ^= ucComMF522Buf[i];
+  60   3               }
+  61   2               if (snr_check != ucComMF522Buf[i])
+  62   2               {   status = MI_ERR;    }
+  63   2          }
+  64   1          
+  65   1          SetBitMask(CollReg,0x80);
+  66   1          return status;
+  67   1      }
+  68          
+  69          char PcdReset(void){
+  70   1          MF522_RST=1;
+  71   1          _nop_();//空机器指令
+  72   1          MF522_RST=0;
+  73   1          _nop_();
+  74   1          MF522_RST=1;
+  75   1           _nop_();
+  76   1          WriteRawRC(CommandReg,PCD_RESETPHASE); //往寄出去地址01，写0x0F
+  77   1        _nop_();
+  78   1            
+  79   1      
+  80   1          WriteRawRC(ModeReg,0x3D);            //和Mifare卡通讯，CRC初始值0x6363，CRCPreset=01
+  81   1          WriteRawRC(TReloadRegL,30);          //定时器重装值，分为两个8位寄存器，初始值都为0x00      
+  82   1          WriteRawRC(TReloadRegH,0);
+  83   1          WriteRawRC(TModeReg,0x8D);           //内部定时器的设置1000 1101,后四位为TPrescalerReg的高四位
+  84   1          WriteRawRC(TPrescalerReg,0x3E);      //为TPregScaler低8位，Ftimer = 6.78MHZ/TPreScaler
+  85   1          WriteRawRC(TxAutoReg,0x40);     
+  86   1          return MI_OK;
+  87   1      }
+  88          
+  89          unsigned char ReadRawRC(unsigned char Address){
+  90   1           unsigned char i, ucAddr;
+  91   1           unsigned char ucResult=0;
+  92   1      
+  93   1           MF522_SCK = 0;
+  94   1           MF522_NSS = 0;
+  95   1           ucAddr = ((Address<<1)&0x7E)|0x80;
+  96   1      
+  97   1           for(i=8;i>0;i--)
+  98   1           {
+  99   2               MF522_SI = ((ucAddr&0x80)==0x80);
+ 100   2               MF522_SCK = 1;
+ 101   2               ucAddr <<= 1;
+ 102   2               MF522_SCK = 0;
+ 103   2           }
+ 104   1      
+ 105   1           for(i=8;i>0;i--)
+ 106   1           {
+ 107   2               MF522_SCK = 1;
+ 108   2               ucResult <<= 1;
+ 109   2               ucResult|=(bit)MF522_SO;
+ 110   2               MF522_SCK = 0;
+ 111   2           }
+ 112   1      
+ 113   1           MF522_NSS = 1;
+ 114   1           MF522_SCK = 1;
+ 115   1           return ucResult;
+ 116   1      } 
+C51 COMPILER V9.54   RC522                                                                 07/17/2023 21:46:39 PAGE 3   
+
+ 117          
+ 118          void WriteRawRC(unsigned char Address, unsigned char value){  
+ 119   1          unsigned char i, ucAddr;
+ 120   1      
+ 121   1          MF522_SCK = 0;
+ 122   1          MF522_NSS = 0;
+ 123   1          ucAddr = ((Address<<1)&0x7E);
+ 124   1      
+ 125   1          for(i=8;i>0;i--)
+ 126   1          {
+ 127   2              MF522_SI = ((ucAddr&0x80)==0x80);
+ 128   2              MF522_SCK = 1;
+ 129   2              ucAddr <<= 1;
+ 130   2              MF522_SCK = 0;
+ 131   2          }
+ 132   1      
+ 133   1          for(i=8;i>0;i--)
+ 134   1          {
+ 135   2              MF522_SI = ((value&0x80)==0x80);
+ 136   2              MF522_SCK = 1;
+ 137   2              value <<= 1;
+ 138   2              MF522_SCK = 0;
+ 139   2          }
+ 140   1          MF522_NSS = 1;
+ 141   1          MF522_SCK = 1;
+ 142   1      }
+ 143          
+ 144          
+ 145          
+ 146          
+ 147          
+ 148          
+ 149          
+ 150          
+ 151          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    414    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----      49
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

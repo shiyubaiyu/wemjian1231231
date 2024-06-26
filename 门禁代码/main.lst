@@ -1,0 +1,739 @@
+C51 COMPILER V9.54   MAIN                                                                  07/17/2023 22:35:02 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN main.obj
+COMPILER INVOKED BY: D:\Keil5\C51\BIN\C51.EXE arc\main.c OPTIMIZE(8,SPEED) BROWSE INCDIR(.\arc) DEBUG OBJECTEXTEND PRINT
+                    -(.\main.lst) TABS(2) OBJECT(main.obj)
+
+line level    source
+
+   1          
+   2          #define AT24C02_ADDRESS   0xA0
+   3          #include <reg52.h>
+   4          #include "main.h"
+   5          #include "rc522.h"
+   6          #include<string.h>
+   7          sbit PWM=P3^6;                                                                              
+   8          #define  PWMmax   22   //¶æ»ú×î´ó½Ç¶È
+   9          #define  PWMmin    7   //¶æ»ú×îÐ¡½Ç¶È
+  10          sbit P1_0 = 0x90;
+  11          sbit P1_1 = 0x91;
+  12          sbit P1_2 = 0x92;
+  13          sbit P1_3 = 0x93;
+  14          sbit P1_4 = 0x94;
+  15          sbit P1_5 = 0x95;
+  16          sbit P1_6 = 0x96;
+  17          sbit P1_7 = 0x97;
+  18          sbit P3_0 = 0xB0;
+  19          sbit P3_1 = 0xB1;
+  20          sbit P3_2 = 0xB2;
+  21          sbit P3_3 = 0xB3;
+  22          sbit P3_4 = 0xB4;
+  23          sbit P3_5 = 0xB5;
+  24          sbit P3_6 = 0xB6;
+  25          sbit P3_7 = 0xB7;
+  26           unsigned char KeyNum;
+  27          unsigned int Password,cishu;
+  28          unsigned int Num;
+  29          unsigned int fangshi;
+  30          unsigned int t;
+  31          unsigned int z=60;
+  32          sbit SG_PWM=P3^6; 
+  33          unsigned int p=0;              //¼Æ´Î  ¸³³õÖµÎª0
+  34          unsigned char PWM_p=0;     
+  35            
+  36          u8 UID[5],Temp[4];
+  37          u16 count = PWMmin, time=0;  //count¿ØÖÆ¶æ»ú½Ç¶È£¬7ÊÇ×îÐ¡½Ç¶È£¬22ÊÇ×î´ó½Ç¶È
+  38          u8 UI0[5]={0xAE,0x45,0xD6,0x1D};     // ´Ë´¦ÎªÁ½ÕÅ¿¨µÄÐÅÏ¢,UI0µ½UI1    //À¶¿¨
+  39          u8 UI1[5]={0x50,0xFD,0xDF,0x12};  //°×¿¨ÐÅÏ¢
+  40          
+  41          void Rc522Test1(void);
+  42          
+  43           void Delay(unsigned int xms)
+  44          {
+  45   1        unsigned char i, j;
+  46   1        while(xms--)
+  47   1        {
+  48   2          i = 2;
+  49   2          j = 239;
+  50   2          do
+  51   2          {
+  52   3            while (--j);
+  53   3          } while (--i);
+  54   2        }
+C51 COMPILER V9.54   MAIN                                                                  07/17/2023 22:35:02 PAGE 2   
+
+  55   1      }
+  56          
+  57          void init0()
+  58          {
+  59   1        TMOD = 0x21;  // ·½Ê½Ò»
+  60   1        TH0 = 0xFF;
+  61   1        TL0 = 0xA4;
+  62   1        TR0 = 1;       // ¿ªÆô¶¨Ê±Æ÷0
+  63   1        EA = 1;      // ¿ªÆô×ÜÖÐ¶Ï
+  64   1        ET0 = 1;       // ¶¨Ê±Æ÷0ÔÊÐíÖÐ¶Ï
+  65   1        TMOD = 0x21;    // T1ÉèÖÃÎª8Î»×Ô¶¯ÖØ×°ÔØ¶¨Ê±Æ÷      
+  66   1          SCON = 0x40;    // ´®¿Ú¹¤×÷ÔÚÄ£Ê½1£º8Î»UART²¨ÌØÂÊ¿É±ä£¬ÇÒ½ûÖ¹½ÓÊÕ
+  67   1          TH1 = 0xE8;     // µ¥Æ¬»úÐ¡¾«ÁéV1.3Ëã³öµÄ2400²¨ÌØÂÊÇÒ²¨ÌØÂÊ£¬¾§ÕñÎª11.0592MHz°ÑÕâÀï¸Ä³É0xE8,12M¸Ä³É0xE8;
+  68   1          TL1 = TH1;      // ¼Ó±¶Ê±µÄ¶¨Ê±Æ÷ÉèÖÃÖµ¡£
+  69   1          PCON = 0x80;    // ÉèÖÃÎª²¨ÌØÂÊ¼Ó±¶
+  70   1      // ¿ª×ÜÖÐ¶Ï
+  71   1        ES = 1;       // ¿ª´®¿ÚÖÐ¶Ï
+  72   1        TR1 = 1;        // ¶¨Ê±Æ÷1¿ªÆô¼Æ
+  73   1        EX0=1;//ÔÊÐíÍâ²¿ÖÐ¶Ï0
+  74   1        IT0=1;        //Íâ²¿ÖÐ¶Ï0ÎªÌøÑØ´¥·¢·½Ê½
+  75   1        EX1=1;//ÔÊÐíÍâ²¿ÖÐ¶Ï1
+  76   1        IT1=1;//Íâ²¿ÖÐ¶Ï1ÎªÌøÑØ´¥·¢·½Ê½
+  77   1        PX1=1;//Íâ²¿ÖÐ¶ÏÒ»Î»=Îª¸ßÓÅÏÈ
+  78   1          PcdReset();       //¸´Î»RC522
+  79   1      }
+  80          void int0_isr(void) interrupt 0 using 0
+  81          {   
+  82   1        fangshi=0;    //½øÈë·½Ê½0£¬Ð´ÃÜÂëÄ£Ê½
+  83   1      
+  84   1      }
+  85          void int1_isr(void) interrupt 2 using 1//ÖÐ¶Ï³ÌÐòÍ¨¹ýWiFiÄ£¿é¿ØÖÆ
+  86          {
+  87   1      fangshi=2;  
+  88   1      }
+  89          
+  90          void T0_inter() interrupt 1
+  91          {
+  92   1          static unsigned int T0Count;
+  93   1        TH0 = 0XFF; 
+  94   1        TL0 = 0XA4; //ÖØÐÂ¸ø¶¨Ê±Æ÷¸³Öµ
+  95   1       
+  96   1             
+  97   1        if(fangshi==0||fangshi==3) 
+  98   1            {   T0Count++;  
+  99   2          if(T0Count>=8000)
+ 100   2        {
+ 101   3          T0Count=0;
+ 102   3            z--;  
+ 103   3             if(z==0)
+ 104   3             { P3_7=1;//·äÃùÆ÷Ïì
+ 105   4              t=3; //¿ªËø´ÎÊý
+ 106   4               P3_1=0; //ÂÌµÆÁÁ
+ 107   4            
+ 108   4             
+ 109   4             
+ 110   4             }
+ 111   3            } 
+ 112   2          }
+ 113   1            time ++ ; //¼ÙÉè¶æ»úÃ¿´Î×ª¶¯µÄÊ±¼ä¾«¶È
+ 114   1        if (time < count) 
+ 115   1        {
+ 116   2          PWM = 1;
+C51 COMPILER V9.54   MAIN                                                                  07/17/2023 22:35:02 PAGE 3   
+
+ 117   2        }
+ 118   1        else
+ 119   1        {
+ 120   2          PWM = 0;
+ 121   2        }
+ 122   1        if (time >= 200)
+ 123   1        {
+ 124   2          time = 0;
+ 125   2        }//Ê¹¶æ»úÔÚtime0-x£¨x<14£©Ê±²Å×ª£¬ÑÓÊ±µ½x-200
+ 126   1      }
+ 127          
+ 128          void main(void)
+ 129          {       LCD_Init();   //LCDÇåÆÁ£¬³õÊ¼»¯
+ 130   1          Num=AT24C02_ReadByte(0);//È¡AT24C02¼Ä´æÆ÷Êý¾ÝµÄµÍ°ËÎ»
+ 131   1          Num|=AT24C02_ReadByte(1)<<8;//È¡AT24C02¼Ä´æÆ÷Êý¾ÝµÄ¸ß°ËÎ»
+ 132   1          P3_0=0;//ºìµÆÃð
+ 133   1          P3_1=0;//ÂÌµÆÃð
+ 134   1          t=3; //¿ªËø´ÎÊýÎª3
+ 135   1          fangshi=0; //½øÈë·½Ê½4£¬´ý»ú×´Ì¬
+ 136   1          while(1)
+ 137   1        { 
+ 138   2           init0(); 
+ 139   2        Rc522Test1();
+ 140   2            
+ 141   2          while(fangshi==0)
+ 142   2          { 
+ 143   3          
+ 144   3          KeyNum=MatrixKey();
+ 145   3           LCD_ShowNum(2,6,t,1);
+ 146   3           LCD_ShowString(1,1,"Password:"); 
+ 147   3            Rc522Test1();
+ 148   3          if(KeyNum)
+ 149   3          {P3_7=0;
+ 150   4          Delay(25);
+ 151   4          P3_7=1;
+ 152   4            if(KeyNum<=10)  
+ 153   4            {
+ 154   5              if(cishu<4) 
+ 155   5              {
+ 156   6                Password*=10;     
+ 157   6                Password+=KeyNum%10;  
+ 158   6                cishu++;
+ 159   6              }
+ 160   5              LCD_ShowNum(2,1,Password,4);
+ 161   5              Rc522Test1();
+ 162   5            }
+ 163   4            if(KeyNum==11)
+ 164   4            {
+ 165   5              if(Password==Num)
+ 166   5              {fangshi=2; 
+ 167   6              }
+ 168   5              else      
+ 169   5              {
+ 170   6                LCD_ShowString(1,14,"ERR"); 
+ 171   6                Password=0; 
+ 172   6                cishu=0;  
+ 173   6                LCD_ShowNum(2,1,Password,4);
+ 174   6                t--;
+ 175   6                LCD_ShowNum(2,6,t,1);
+ 176   6                if(t==0)
+ 177   6                {  
+ 178   7                  
+C51 COMPILER V9.54   MAIN                                                                  07/17/2023 22:35:02 PAGE 4   
+
+ 179   7                fangshi=3;
+ 180   7                }
+ 181   6              }
+ 182   5            }
+ 183   4            if(KeyNum==12)  
+ 184   4            {
+ 185   5              Password=0;   
+ 186   5            cishu=0;  
+ 187   5              LCD_ShowNum(2,1,Password,4);
+ 188   5            }
+ 189   4          }
+ 190   3        }
+ 191   2        while(fangshi==1)
+ 192   2        {   
+ 193   3          KeyNum=MatrixKey();
+ 194   3          
+ 195   3          LCD_ShowString(1,1,"Write Password:");
+ 196   3        
+ 197   3      
+ 198   3          if(KeyNum)
+ 199   3          {  P3_7=0;
+ 200   4          Delay(25);
+ 201   4          P3_7=1;
+ 202   4            if(KeyNum<=10)
+ 203   4            {
+ 204   5              if(cishu<4) 
+ 205   5              {
+ 206   6                Password*=10;       
+ 207   6                Password+=KeyNum%10;    
+ 208   6                cishu++;
+ 209   6              }
+ 210   5              LCD_ShowNum(2,1,Password,4);  
+ 211   5            }
+ 212   4            if(KeyNum==11)  
+ 213   4            {   
+ 214   5             LCD_Init();
+ 215   5            Num=Password;
+ 216   5              AT24C02_WriteByte(0,Num%256);
+ 217   5            Delay(5);
+ 218   5            AT24C02_WriteByte(1,Num/256);
+ 219   5            Delay(5);
+ 220   5                Password=0;   
+ 221   5                cishu=0;    
+ 222   5                fangshi=0;
+ 223   5                LCD_ShowString(1,14,"ok");
+ 224   5                Delay(2000);
+ 225   5                 LCD_Init();  
+ 226   5      
+ 227   5            }
+ 228   4            if(KeyNum==12)  //å¦‚æžœS12æŒ‰é”®æŒ‰ä¸‹ï¼Œå–æ¶ˆ
+ 229   4            { 
+ 230   5              Password=0;   //å¯†ç æ¸…é›¶
+ 231   5              cishu=0;    //è®¡æ¬¡æ¸…é›¶
+ 232   5              LCD_ShowNum(2,1,Password,4);  //æ›´æ–°æ˜¾ç¤º
+ 233   5            }
+ 234   4            
+ 235   4          }
+ 236   3        }
+ 237   2        while(fangshi==2)
+ 238   2        {
+ 239   3          P3_0=1;P3_7=1;
+ 240   3          Delay(100);
+C51 COMPILER V9.54   MAIN                                                                  07/17/2023 22:35:02 PAGE 5   
+
+ 241   3          P3_7=1; P3_7=0;
+ 242   3          Delay(100);
+ 243   3          P3_7=1;P3_7=0;
+ 244   3          Delay(100);
+ 245   3          P3_7=1; 
+ 246   3      
+ 247   3          Rc522Test1();
+ 248   3                        LCD_Init();
+ 249   3                LCD_ShowString(1,14,"OK ");
+ 250   3                Password=0; 
+ 251   3              
+ 252   3                 count = 14;              //¶æ»ú×ª¶¯
+ 253   3                delay1ms(1500);     
+ 254   3                count=PWMmin;              //¶æ»ú×ª»ØÈ¥
+ 255   3                delay1ms(1000);
+ 256   3              
+ 257   3                 LCD_Init();
+ 258   3                       P3_0=0;    
+ 259   3                         t=3;
+ 260   3                    
+ 261   3                    fangshi=0;
+ 262   3        
+ 263   3        
+ 264   3        }
+ 265   2      
+ 266   2            while(fangshi==3)
+ 267   2        { P3_7=0;
+ 268   3          P3_1=1;
+ 269   3          Rc522Test1();
+ 270   3          LCD_ShowNum(2,10,z,2);
+ 271   3            LCD_ShowNum(2,6,t,1);
+ 272   3        }
+ 273   2      while(fangshi==4) 
+ 274   2        
+ 275   2         {
+ 276   3           t=3;
+ 277   3            z=60;  
+ 278   3           PCON=0X01;
+ 279   3           
+ 280   3      
+ 281   3         }
+ 282   2        }
+ 283   1      }
+ 284          
+ 285          
+ 286          void delay1ms(unsigned int i)  
+ 287          {
+ 288   1          unsigned char a,b,c;
+ 289   1        for(;i>0;i--)
+ 290   1           for(c=1;c>0;c--)
+ 291   1                for(b=142;b>0;b--)
+ 292   1                    for(a=2;a>0;a--);
+ 293   1      }
+ 294          
+ 295          void delay10us(unsigned char i)   //Îó²î 0us,À¨ºÅÄÚÌîÊ²Ã´Êý×Ö¾ÍÊÇ¶àÉÙ¸öÊ®Î¢Ãë
+ 296          {
+ 297   1          unsigned char a,b;
+ 298   1        for(;i>0;i--)
+ 299   1            for(b=1;b>0;b--)
+ 300   1                for(a=2;a>0;a--);
+ 301   1      }
+ 302          
+C51 COMPILER V9.54   MAIN                                                                  07/17/2023 22:35:02 PAGE 6   
+
+ 303          void Rc522Test1(void)
+ 304          { if (PcdRequest(0x52, Temp) == MI_OK)
+ 305   1           {
+ 306   2              if (PcdAnticoll(UID) == MI_OK)
+ 307   2            {
+ 308   3          
+ 309   3              if(strcmp(UID,UI0)==0)
+ 310   3              {
+ 311   4                fangshi=2;
+ 312   4              }
+ 313   3            if(strcmp(UID,UI1)==0)
+ 314   3            {
+ 315   4              P3_3=0;
+ 316   4          Delay(100);
+ 317   4          P3_3=1;P3_3=0;
+ 318   4          Delay(100);
+ 319   4          P3_3=1;
+ 320   4             fangshi=1;
+ 321   4            }
+ 322   3            }
+ 323   2           }
+ 324   1           }
+ 325          
+ 326          
+ 327           void SetBitMask(unsigned char reg,unsigned char mask)  
+ 328          {
+ 329   1          char tmp = 0x00;
+ 330   1          tmp = ReadRawRC(reg);
+ 331   1          WriteRawRC(reg,tmp | mask);  // set bit mask
+ 332   1      }
+ 333          void ClearBitMask(unsigned char reg,unsigned char mask)  
+ 334          {
+ 335   1          char tmp = 0x0;
+ 336   1          tmp = ReadRawRC(reg);
+ 337   1          WriteRawRC(reg, tmp & ~mask);  // clear bit mask
+ 338   1      }
+ 339          
+ 340          char PcdComMF522(unsigned char Command, 
+ 341                           unsigned char *pInData, 
+ 342                           unsigned char InLenByte,
+ 343                           unsigned char *pOutData, 
+ 344                           unsigned int  *pOutLenBit)
+ 345          {
+ 346   1          char status = MI_ERR;
+ 347   1          unsigned char irqEn   = 0x00;
+ 348   1          unsigned char waitFor = 0x00;
+ 349   1          unsigned char lastBits;
+ 350   1          unsigned char n;
+ 351   1          unsigned int i;
+ 352   1          switch (Command)
+ 353   1          {
+ 354   2             case PCD_AUTHENT:
+ 355   2                irqEn   = 0x12;
+ 356   2                waitFor = 0x10;
+ 357   2                break;
+ 358   2             case PCD_TRANSCEIVE:
+ 359   2                irqEn   = 0x77;
+ 360   2                waitFor = 0x30;
+ 361   2                break;
+ 362   2             default:
+ 363   2               break;
+ 364   2          }
+C51 COMPILER V9.54   MAIN                                                                  07/17/2023 22:35:02 PAGE 7   
+
+ 365   1         
+ 366   1          WriteRawRC(ComIEnReg,irqEn|0x80);
+ 367   1          ClearBitMask(ComIrqReg,0x80);
+ 368   1          WriteRawRC(CommandReg,PCD_IDLE);
+ 369   1          SetBitMask(FIFOLevelReg,0x80);
+ 370   1          
+ 371   1          for (i=0; i<InLenByte; i++)
+ 372   1          {   WriteRawRC(FIFODataReg, pInData[i]);    }
+ 373   1          WriteRawRC(CommandReg, Command);
+ 374   1         
+ 375   1          
+ 376   1          if (Command == PCD_TRANSCEIVE)
+ 377   1          {    SetBitMask(BitFramingReg,0x80);  }
+ 378   1          
+ 379   1      //    i = 600;//¸ù¾ÝÊ±ÖÓÆµÂÊµ÷Õû£¬²Ù×÷M1¿¨×î´óµÈ´ýÊ±¼ä25ms
+ 380   1       i = 2000;//900,1100,1700,2000,2700
+ 381   1          do 
+ 382   1          {
+ 383   2               n = ReadRawRC(ComIrqReg);
+ 384   2               i--;
+ 385   2          }
+ 386   1          while ((i!=0) && !(n&0x01) && !(n&waitFor));
+ 387   1          ClearBitMask(BitFramingReg,0x80);
+ 388   1              
+ 389   1          if (i!=0)
+ 390   1          {    
+ 391   2               if(!(ReadRawRC(ErrorReg)&0x1B))
+ 392   2               {
+ 393   3                   status = MI_OK;
+ 394   3                   if (n & irqEn & 0x01)
+ 395   3                   {   status = MI_NOTAGERR;   }
+ 396   3                   if (Command == PCD_TRANSCEIVE)
+ 397   3                   {
+ 398   4                      n = ReadRawRC(FIFOLevelReg);
+ 399   4                      lastBits = ReadRawRC(ControlReg) & 0x07;
+ 400   4                      if (lastBits)
+ 401   4                      {   *pOutLenBit = (n-1)*8 + lastBits;   }
+ 402   4                      else
+ 403   4                      {   *pOutLenBit = n*8;   }
+ 404   4                      if (n == 0)
+ 405   4                      {   n = 1;    }
+ 406   4                      if (n > MAXRLEN)
+ 407   4                      {   n = MAXRLEN;   }
+ 408   4                      for (i=0; i<n; i++)
+ 409   4                      {   pOutData[i] = ReadRawRC(FIFODataReg);    }
+ 410   4              
+ 411   4                  }
+ 412   3               }
+ 413   2               else
+ 414   2               {   status = MI_ERR;   }
+ 415   2         }
+ 416   1         
+ 417   1      
+ 418   1         SetBitMask(ControlReg,0x80);           // stop timer now
+ 419   1         WriteRawRC(CommandReg,PCD_IDLE); 
+ 420   1         return status;
+ 421   1      }
+ 422           sbit I2C_SCL=P2^1;
+ 423          sbit I2C_SDA=P2^0;
+ 424          
+ 425          void I2C_Start(void)
+ 426          {
+C51 COMPILER V9.54   MAIN                                                                  07/17/2023 22:35:02 PAGE 8   
+
+ 427   1        I2C_SDA=1;
+ 428   1        I2C_SCL=1;
+ 429   1        I2C_SDA=0;
+ 430   1        I2C_SCL=0;
+ 431   1      }
+ 432          
+ 433          
+ 434          void I2C_Stop(void)
+ 435          {
+ 436   1        I2C_SDA=0;
+ 437   1        I2C_SCL=1;
+ 438   1        I2C_SDA=1;
+ 439   1      }
+ 440          
+ 441          void I2C_SendByte(unsigned char Byte)
+ 442          {
+ 443   1        unsigned char i;
+ 444   1        for(i=0;i<8;i++)
+ 445   1        {
+ 446   2          I2C_SDA=Byte&(0x80>>i);
+ 447   2          I2C_SCL=1;
+ 448   2          I2C_SCL=0;
+ 449   2        }
+ 450   1      }
+ 451          
+ 452          
+ 453          unsigned char I2C_ReceiveByte(void)
+ 454          {
+ 455   1        unsigned char i,Byte=0x00;
+ 456   1        I2C_SDA=1;
+ 457   1        for(i=0;i<8;i++)
+ 458   1        {
+ 459   2          I2C_SCL=1;
+ 460   2          if(I2C_SDA){Byte|=(0x80>>i);}
+ 461   2          I2C_SCL=0;
+ 462   2        }
+ 463   1        return Byte;
+ 464   1      }
+ 465          
+ 466          void I2C_SendAck(unsigned char AckBit)
+ 467          {
+ 468   1        I2C_SDA=AckBit;
+ 469   1        I2C_SCL=1;
+ 470   1        I2C_SCL=0;
+ 471   1      }
+ 472          
+ 473          unsigned char I2C_ReceiveAck(void)
+ 474          {
+ 475   1        unsigned char AckBit;
+ 476   1        I2C_SDA=1;
+ 477   1        I2C_SCL=1;
+ 478   1        AckBit=I2C_SDA;
+ 479   1        I2C_SCL=0;
+ 480   1        return AckBit;
+ 481   1      }
+ 482          //i2c
+ 483          sbit LCD_RS=P2^6;
+ 484          sbit LCD_RW=P2^5;
+ 485          sbit LCD_EN=P2^7;
+ 486          #define LCD_DataPort P0
+ 487          void LCD_Delay()
+ 488          {
+C51 COMPILER V9.54   MAIN                                                                  07/17/2023 22:35:02 PAGE 9   
+
+ 489   1        unsigned char i, j;
+ 490   1      
+ 491   1        i = 2;
+ 492   1        j = 239;
+ 493   1        do
+ 494   1        {
+ 495   2          while (--j);
+ 496   2        } while (--i);
+ 497   1      }
+ 498          
+ 499          void LCD_WriteCommand(unsigned char Command)
+ 500          {
+ 501   1        LCD_RS=0;
+ 502   1        LCD_RW=0;
+ 503   1        LCD_DataPort=Command;
+ 504   1        LCD_EN=1;
+ 505   1        LCD_Delay();
+ 506   1        LCD_EN=0;
+ 507   1        LCD_Delay();
+ 508   1      }
+ 509          
+ 510          void LCD_WriteData(unsigned char Data)
+ 511          {
+ 512   1        LCD_RS=1;
+ 513   1        LCD_RW=0;
+ 514   1        LCD_DataPort=Data;
+ 515   1        LCD_EN=1;
+ 516   1        LCD_Delay();
+ 517   1        LCD_EN=0;
+ 518   1        LCD_Delay();
+ 519   1      }
+ 520          
+ 521          
+ 522          void LCD_SetCursor(unsigned char Line,unsigned char Column)
+ 523          {
+ 524   1        if(Line==1)
+ 525   1        {
+ 526   2          LCD_WriteCommand(0x80|(Column-1));
+ 527   2        }
+ 528   1        else if(Line==2)
+ 529   1        {
+ 530   2          LCD_WriteCommand(0x80|(Column-1+0x40));
+ 531   2        }
+ 532   1      }
+ 533          
+ 534          void LCD_Init()
+ 535          {
+ 536   1        LCD_WriteCommand(0x38);
+ 537   1        LCD_WriteCommand(0x0c);
+ 538   1        LCD_WriteCommand(0x06);
+ 539   1        LCD_WriteCommand(0x01);
+ 540   1      }
+ 541          
+ 542          void LCD_ShowChar(unsigned char Line,unsigned char Column,char Char)
+ 543          {
+ 544   1        LCD_SetCursor(Line,Column);
+ 545   1        LCD_WriteData(Char);
+ 546   1      }
+ 547          
+ 548          
+ 549          void LCD_ShowString(unsigned char Line,unsigned char Column,char *String)
+ 550          {
+C51 COMPILER V9.54   MAIN                                                                  07/17/2023 22:35:02 PAGE 10  
+
+ 551   1        unsigned char i;
+ 552   1        LCD_SetCursor(Line,Column);
+ 553   1        for(i=0;String[i]!='\0';i++)
+ 554   1        {
+ 555   2          LCD_WriteData(String[i]);
+ 556   2        }
+ 557   1      }
+ 558          
+ 559          int LCD_Pow(int X,int Y)
+ 560          {
+ 561   1        unsigned char i;
+ 562   1        int Result=1;
+ 563   1        for(i=0;i<Y;i++)
+ 564   1        {
+ 565   2          Result*=X;
+ 566   2        }
+ 567   1        return Result;
+ 568   1      }
+ 569          
+ 570          
+ 571          void LCD_ShowNum(unsigned char Line,unsigned char Column,unsigned int Number,unsigned char Length)
+ 572          {
+ 573   1        unsigned char i;
+ 574   1        LCD_SetCursor(Line,Column);
+ 575   1        for(i=Length;i>0;i--)
+ 576   1        {
+ 577   2          LCD_WriteData(Number/LCD_Pow(10,i-1)%10+'0');
+ 578   2        }
+ 579   1      }
+ 580          
+ 581          void LCD_ShowSignedNum(unsigned char Line,unsigned char Column,int Number,unsigned char Length)
+ 582          {
+ 583   1        unsigned char i;
+ 584   1        unsigned int Number1;
+ 585   1        LCD_SetCursor(Line,Column);
+ 586   1        if(Number>=0)
+ 587   1        {
+ 588   2          LCD_WriteData('+');
+ 589   2          Number1=Number;
+ 590   2        }
+ 591   1        else
+ 592   1        {
+ 593   2          LCD_WriteData('-');
+ 594   2          Number1=-Number;
+ 595   2        }
+ 596   1        for(i=Length;i>0;i--)
+ 597   1        {
+ 598   2          LCD_WriteData(Number1/LCD_Pow(10,i-1)%10+'0');
+ 599   2        }
+ 600   1      }
+ 601          
+ 602          void LCD_ShowHexNum(unsigned char Line,unsigned char Column,unsigned int Number,unsigned char Length)
+ 603          {
+ 604   1        unsigned char i,SingleNumber;
+ 605   1        LCD_SetCursor(Line,Column);
+ 606   1        for(i=Length;i>0;i--)
+ 607   1        {
+ 608   2          SingleNumber=Number/LCD_Pow(16,i-1)%16;
+ 609   2          if(SingleNumber<10)
+ 610   2          {
+ 611   3            LCD_WriteData(SingleNumber+'0');
+ 612   3          }
+C51 COMPILER V9.54   MAIN                                                                  07/17/2023 22:35:02 PAGE 11  
+
+ 613   2          else
+ 614   2          {
+ 615   3            LCD_WriteData(SingleNumber-10+'A');
+ 616   3          }
+ 617   2        }
+ 618   1      }
+ 619          
+ 620          void LCD_ShowBinNum(unsigned char Line,unsigned char Column,unsigned int Number,unsigned char Length)
+ 621          {
+ 622   1        unsigned char i;
+ 623   1        LCD_SetCursor(Line,Column);
+ 624   1        for(i=Length;i>0;i--)
+ 625   1        {
+ 626   2          LCD_WriteData(Number/LCD_Pow(2,i-1)%2+'0');
+ 627   2        }
+ 628   1      }
+ 629          unsigned char MatrixKey()
+ 630          {
+ 631   1        unsigned char KeyNumber=0;
+ 632   1        
+ 633   1        P1=0xFF;
+ 634   1        P1_3=0;
+ 635   1        if(P1_7==0){Delay(20);while(P1_7==0);Delay(20);KeyNumber=1;}
+ 636   1        if(P1_6==0){Delay(20);while(P1_6==0);Delay(20);KeyNumber=5;}
+ 637   1        if(P1_5==0){Delay(20);while(P1_5==0);Delay(20);KeyNumber=9;}
+ 638   1        if(P1_4==0){Delay(20);while(P1_4==0);Delay(20);KeyNumber=13;}
+ 639   1        
+ 640   1        P1=0xFF;
+ 641   1        P1_2=0;
+ 642   1        if(P1_7==0){Delay(20);while(P1_7==0);Delay(20);KeyNumber=2;}
+ 643   1        if(P1_6==0){Delay(20);while(P1_6==0);Delay(20);KeyNumber=6;}
+ 644   1        if(P1_5==0){Delay(20);while(P1_5==0);Delay(20);KeyNumber=10;}
+ 645   1        if(P1_4==0){Delay(20);while(P1_4==0);Delay(20);KeyNumber=14;}
+ 646   1        
+ 647   1        P1=0xFF;
+ 648   1        P1_1=0;
+ 649   1        if(P1_7==0){Delay(20);while(P1_7==0);Delay(20);KeyNumber=3;}
+ 650   1        if(P1_6==0){Delay(20);while(P1_6==0);Delay(20);KeyNumber=7;}
+ 651   1        if(P1_5==0){Delay(20);while(P1_5==0);Delay(20);KeyNumber=11;}
+ 652   1        if(P1_4==0){Delay(20);while(P1_4==0);Delay(20);KeyNumber=15;}
+ 653   1        
+ 654   1        P1=0xFF;
+ 655   1        P1_0=0;
+ 656   1        if(P1_7==0){Delay(20);while(P1_7==0);Delay(20);KeyNumber=4;}
+ 657   1        if(P1_6==0){Delay(20);while(P1_6==0);Delay(20);KeyNumber=8;}
+ 658   1        if(P1_5==0){Delay(20);while(P1_5==0);Delay(20);KeyNumber=12;}
+ 659   1        if(P1_4==0){Delay(20);while(P1_4==0);Delay(20);KeyNumber=16;}
+ 660   1        
+ 661   1        return KeyNumber;
+ 662   1      }
+ 663          
+ 664          
+ 665          void AT24C02_WriteByte(unsigned char WordAddress,Data)
+ 666          {
+ 667   1        I2C_Start();
+ 668   1        I2C_SendByte(AT24C02_ADDRESS);
+ 669   1        I2C_ReceiveAck();
+ 670   1        I2C_SendByte(WordAddress);
+ 671   1        I2C_ReceiveAck();
+ 672   1        I2C_SendByte(Data);
+ 673   1        I2C_ReceiveAck();
+ 674   1        I2C_Stop();
+C51 COMPILER V9.54   MAIN                                                                  07/17/2023 22:35:02 PAGE 12  
+
+ 675   1      }
+ 676          
+ 677          unsigned char AT24C02_ReadByte(unsigned char WordAddress)
+ 678          {
+ 679   1        unsigned char Data;
+ 680   1        I2C_Start();
+ 681   1        I2C_SendByte(AT24C02_ADDRESS);
+ 682   1        I2C_ReceiveAck();
+ 683   1        I2C_SendByte(WordAddress);
+ 684   1        I2C_ReceiveAck();
+ 685   1        I2C_Start();
+ 686   1        I2C_SendByte(AT24C02_ADDRESS|0x01);
+ 687   1        I2C_ReceiveAck();
+ 688   1        Data=I2C_ReceiveByte();
+ 689   1        I2C_SendAck(1);
+ 690   1        I2C_Stop();
+ 691   1        return Data;
+ 692   1      }
+ 693          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   2236    ----
+   CONSTANT SIZE    =     37    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     41      52
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
